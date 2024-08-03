@@ -85,7 +85,7 @@ jobs:
       - name: SCP to EC2
         env:
           EC2_USER: ${{ secrets.CRANE80_EC2_USER }}
-          EC2_HOST: ${{ secrets.CREANE80_EC2_HOST }}
+          EC2_HOST: ${{ secrets.CRANE80_EC2_HOST }}
         run: |
           scp -i ~/.ssh/id_rsa *.jar $EC2_USER@$EC2_HOST:/home/ubuntu
 
