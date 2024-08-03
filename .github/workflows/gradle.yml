@@ -1,0 +1,108 @@
+#워크플로우 이름정의
+name: Java CI with Gradle
+#develpo으로 pr시 워크플로우 실행 (배포 test임. 추후 main으로 배포할것)
+on:
+  push:
+    branches: [ develop ]
+
+jobs:
+  build:
+    #작업(build) 를 ubuntu 환경에서 실행 & 읽기 권한을 가진다.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    #단계 : Github의 checkout 액션을 사용하여 소프코드 체크
+    steps:
+      - uses: actions/checkout@v4
+        #JDK 17을 설정(Temurin 배포판 사용)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      #Gradle 설정
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3.1.0
+      #gradlew에 실행 권한 부여
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      #Gradle Wrapper를 사용하여 빌드(클린빌드)
+      - name: Build with Gradle Wrapper
+        run: ./gradlew clean build
+      #빌드 디렉토리의 내용을 나열한다
+      - name: List build directory
+        run: ls -la build/libs
+      #빌드된 아티팩트를 업로드한다. (이름: build-artifacts, 경로: build/libs/*.jar)
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: build/libs/*.jar
+  #작업(dependency-submission): ubuntu-latest 환경에서 실행. 쓰기 권한을 가짐.
+  dependency-submission:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    #GitHub의 checkout 액션을 사용하여 소스 코드를 체크아웃
+    steps:
+      - uses: actions/checkout@v4
+      #JDK 17을 설정. (Temurin 배포판을 사용)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      #의존성 그래프를 생성하고 제출
+      - name: Generate and submit dependency graph
+        uses: gradle/actions/dependency-submission@v3.1.0
+
+  #배포(deploy): build 작업이 완료되어야 실행된다. ubuntu-latest 환경에서 실행
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    #빌드된 아티팩트를 다운로드함(이름: build-artifacts)
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+      #아티팩트 디렉토리의 내용을 나열
+      - name: List artifact directory
+        run: ls -la  # 다운로드한 아티팩트의 디렉토리 내용 확인
+      #ssh키 설정
+      #~/.ssh 디렉토리를 생성하고, EC2 키를 설정
+      #SSH 키에 적절한 권한을 부여하고, 호스트를 known_hosts에 추가
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CRANE80_EC2_KEY }}" | tr -d '\r' > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.CRANE80_EC2_HOST }} >> ~/.ssh/known_hosts
+      #SCP를 사용하여 빌드된 JAR 파일을 EC2 인스턴스로 전송
+      #EC2 사용자와 호스트 정보는 secrets에서 가져옴
+      - name: SCP to EC2
+        env:
+          EC2_USER: ${{ secrets.CRANE_EC2_USER }}
+          EC2_HOST: ${{ secrets.CREANE80_EC2_HOST }}
+        run: |
+          scp -i ~/.ssh/id_rsa *.jar $EC2_USER@$EC2_HOST:/home/ubuntu
+
+      - name: RUN java app
+        env:
+          EC2_USER: ${{ secrets.CRANE_EC2_USER }}
+          EC2_HOST: ${{ secrets.CRANE80_EC2_HOST }}
+        run: |
+          # PID 파일이 존재하는지 확인
+          if ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST '[ -f /home/ubuntu/pid ]'; then
+            echo "PID 파일이 존재합니다. 이전 프로세스를 종료합니다."
+            # PID 파일에서 프로세스 ID 읽고 종료
+            ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST 'kill -9 $(< /home/ubuntu/pid)'
+          else
+            echo "PID 파일이 존재하지 않습니다. 새로운 프로세스를 시작합니다."
+          fi
+          
+          # 새로운 Java 프로세스 시작
+          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST 'nohup java -jar /home/ubuntu/*.jar >/dev/null 2>&1 & echo $! > /home/ubuntu/pid'
+          
+          # 프로세스가 잘 시작되었는지 확인
+          ssh -i ~/.ssh/id_rsa $EC2_USER@$EC2_HOST 'ps -p $(< /home/ubuntu/pid) && echo "프로세스 시작됨" || echo "프로세스 시작 실패"'
