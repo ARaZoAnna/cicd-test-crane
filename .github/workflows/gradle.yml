@@ -1,5 +1,4 @@
 #워크플로우 이름정의
-#
 name: Java CI with Gradle
 #develpo으로 pr시 워크플로우 실행 (배포 test임. 추후 main으로 배포할것)
 on:
