@@ -12,6 +12,7 @@ jobs:
     permissions:
       contents: read
     #단계 : Github의 checkout 액션을 사용하여 소프코드 체크
+
     steps:
       - uses: actions/checkout@v4
         #JDK 17을 설정(Temurin 배포판 사용)

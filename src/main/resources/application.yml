@@ -1,10 +1,10 @@
 server:
-  port: ${PORT} #로드밸런싱을 위한 변수 설정
+  port: 8080 #로드밸런싱을 위한 변수 설정
 
 SARAMIN:
-  ApiKey: ${API_KEY} #API 키
-  Job_Mid_Cd: ${IT_CD} #직무 관련 코드 (IT)
-  Count: ${INFO_COUNT} #job 엘리먼트 개수
+  ApiKey: OGvfdhi5liDBRnhwW4RoyjDFs1wG6RzZGF8oGPrCSaIGQ1pC #API 키
+  Job_Mid_Cd: 2 #직무 관련 코드 (IT)
+  Count: 500 #job 엘리먼트 개수
 
 spring:
   application:
@@ -23,10 +23,10 @@ spring:
         enabled: true
 
   datasource:
-    url: ${LOCAL_DB_URL}
+    url: jdbc:mysql://mymysql.cjee2s48u8zx.ap-northeast-2.rds.amazonaws.com/crane?serverTimezone=UTC
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: ${LOCAL_DB_USER}
-    password: ${LOCAL_DB_PW}
+    username: admin
+    password: manbochuchu
 
   jpa:
     hibernate:
